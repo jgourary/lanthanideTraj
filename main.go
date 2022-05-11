@@ -1,4 +1,4 @@
-package lanthanideTraj
+package main
 
 import (
 	"bufio"
@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-var shellDist = 2.8
+var shellDist = 3.1
 
 func main() {
 	atoms := readFile("tail.arc")
@@ -43,36 +43,53 @@ func readFile(filePath string) []atom {
 	}
 
 	scanner := bufio.NewScanner(file)
-	var atoms []atom
+	atoms := make(map[int]*atom)
+	coordinationNum := -1
 	structureCenter := []float64{1e10, 0.0, 0.0}
 	for scanner.Scan() {
-		// get next line
 		line := scanner.Text()
 		fields := strings.Fields(line)
-		if len(fields) > 5 {
+		if len(fields) > 5 && !strings.Contains(line, "30.000000   30.000000   30.000000") {
 			newAtom := line2atom(fields)
-			if fields[0] == "1" {
+			if newAtom.id == 1 {
 				structureCenter = []float64{newAtom.x, newAtom.y, newAtom.z}
 			}
-			if dist2center(structureCenter, newAtom) < shellDist {
-				atoms = append(atoms, newAtom)
+			atoms[newAtom.id] = &newAtom
+		}
+	}
+
+	var structAtoms []atom
+	for _, thisAtom := range atoms {
+		if thisAtom.id == 1 {
+			structureCenter = []float64{thisAtom.x, thisAtom.y, thisAtom.z}
+		}
+		if dist2center(structureCenter, *thisAtom) < shellDist {
+			coordinationNum++
+			structAtoms = append(structAtoms, *thisAtom)
+			for _, bondedAtomID := range thisAtom.bonds {
+				structAtoms = append(structAtoms, *atoms[bondedAtomID])
 			}
 		}
 	}
-	atoms = renumber(atoms)
-	return atoms
+	fmt.Println("Coordination Num = " + strconv.Itoa(coordinationNum))
+	structAtoms = renumber(structAtoms)
+	return structAtoms
 }
 
 func renumber(atoms []atom) []atom {
 	intMap := make(map[int]int)
 	for i := 0; i < len(atoms); i++ {
-		intMap[atoms[i].id] = i + 1
+		atoms[i].newID = i + 1
+		// fmt.Println(atoms[i].newID)
+		intMap[atoms[i].id] = atoms[i].newID
 	}
 	for _, thisAtom := range atoms {
 		for i := 0; i < len(thisAtom.bonds); i++ {
+			// fmt.Println(strconv.Itoa(thisAtom.bonds[i]) + ", " + strconv.Itoa(intMap[thisAtom.bonds[i]]))
 			thisAtom.bonds[i] = intMap[thisAtom.bonds[i]]
 		}
 	}
+
 	return atoms
 }
 
